@@ -26,6 +26,15 @@ import {
   type Outfit,
 } from "@/lib/supabase";
 
+import { createCutout } from "@/lib/clothing-cutout";
+
+const piecePrompts: Record<Category, string> = {
+  top: "upper",
+  bottom: "pants",
+  jacket: "upper",
+  shoes: "shoes",
+};
+
 type View = "wardrobe" | "studio" | "add";
 type Selection = Partial<Record<Category, string>>;
 const message = (error: unknown) =>
@@ -128,7 +137,7 @@ function Setup() {
             </li>
           </ol>
           <p className="subtitle">
-            Your photos stay private. Your style stays yours.
+            Your personal wardrobe. Your style, collected.
           </p>
         </div>
       </div>
@@ -956,15 +965,68 @@ function Editor({
   const [color, setColor] = useState(item?.color || "");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState(item?.url || "");
+  const [photoType, setPhotoType] = useState("worn");
+  const [piece, setPiece] = useState(piecePrompts[item?.category || "top"]);
+  const [cutout, setCutout] = useState<Blob | null>(null);
+  const [showOriginal, setShowOriginal] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [phase, setPhase] = useState("");
   useEffect(() => {
-    if (!file) return;
-    const url = URL.createObjectURL(file);
+    const source = showOriginal ? file : cutout || file;
+    if (!source) return;
+    const url = URL.createObjectURL(source);
     setPreview(url);
     return () => URL.revokeObjectURL(url);
-  }, [file]);
+  }, [file, cutout, showOriginal]);
+  function resetCutouts() {
+    setCutout(null);
+    setShowOriginal(false);
+  }
+  async function extract() {
+    if (!file || busy) return;
+    setBusy(true);
+    setError("");
+    resetCutouts();
+    try {
+      setPhase("Preparing photo…");
+      const photo = await preparePhoto(file);
+      const { data, error } = await supabase!.auth.getSession();
+      if (error || !data.session)
+        throw new Error("Please sign in again before extracting clothing.");
+      setPhase("Finding your clothing…");
+      const response = await fetch(
+        `/api/extract-clothing?mode=${photoType}&piece=${piece}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${data.session.access_token}`,
+            "Content-Type": "image/webp",
+          },
+          body: photo,
+          signal: AbortSignal.timeout(195_000),
+        },
+      );
+      const result = await response.json().catch(() => ({
+        error: "The clothing service is unavailable. Please try again later.",
+      }));
+      if (!response.ok)
+        throw new Error(
+          result.error || "Could not extract this piece. Please try again.",
+        );
+      setPhase("Making your cutout…");
+      setCutout(await createCutout(photo, result.masks[0]));
+    } catch (error) {
+      setError(
+        error instanceof Error && error.name === "TimeoutError"
+          ? "Extraction took too long. Please try again later."
+          : message(error),
+      );
+    } finally {
+      setBusy(false);
+      setPhase("");
+    }
+  }
   function choose(file?: File) {
     if (!file) return;
     if (
@@ -975,12 +1037,18 @@ function Editor({
       return;
     }
     setFile(file);
+    resetCutouts();
     setError("");
   }
   async function save(event: FormEvent) {
     event.preventDefault();
+    if (busy) return;
     if (!file && !item) {
       setError("Choose a photo first.");
+      return;
+    }
+    if (file && !cutout) {
+      setError("Extract and preview your clothing before saving.");
       return;
     }
     setBusy(true);
@@ -990,8 +1058,7 @@ function Editor({
     try {
       let path = item?.image_path;
       if (file) {
-        setPhase("Preparing photo…");
-        const photo = await preparePhoto(file);
+        const photo = cutout!;
         path = `${user.id}/${crypto.randomUUID()}.webp`;
         setPhase("Uploading photo…");
         const { error } = await supabase!.storage
@@ -1059,9 +1126,13 @@ function Editor({
         >
           {preview ? (
             <img
-              className="upload-preview"
+              className={`upload-preview${cutout && !showOriginal ? " cutout-preview" : ""}`}
               src={preview}
-              alt="Clothing preview"
+              alt={
+                cutout && !showOriginal
+                  ? "Extracted clothing on a transparent background"
+                  : "Original clothing photo"
+              }
             />
           ) : (
             <>
@@ -1081,7 +1152,10 @@ function Editor({
               item ? "Replace clothing photo" : "Choose clothing photo"
             }
             disabled={busy}
-            onChange={(e) => choose(e.target.files?.[0])}
+            onChange={(e) => {
+              choose(e.target.files?.[0]);
+              e.target.value = "";
+            }}
           />
           <span className="button secondary">
             {preview ? "Choose another photo" : "Choose photo"}
@@ -1089,8 +1163,90 @@ function Editor({
         </label>
         <p className="subtitle">
           JPEG, PNG or WebP · Up to 10 MB
-          <br />A simple background helps your piece shine.
+          <br />
+          Works with clothing worn by someone or photographed on its own.
         </p>
+        {file && (
+          <div className="cutout-controls form-stack">
+            <label className="field">
+              Photo type
+              <select
+                value={photoType}
+                disabled={busy}
+                onChange={(e) => {
+                  setPhotoType(e.target.value);
+                  resetCutouts();
+                }}
+              >
+                <option value="worn">Someone wearing the clothing</option>
+                <option value="standalone">Clothing on its own</option>
+              </select>
+            </label>
+            {photoType === "worn" && (
+              <label className="field">
+                Piece to extract
+                <select
+                  value={piece}
+                  disabled={busy}
+                  onChange={(e) => {
+                    setPiece(e.target.value);
+                    resetCutouts();
+                  }}
+                >
+                  {(category === "top" || category === "jacket") && (
+                    <option value="upper">Top / outer layer</option>
+                  )}
+                  {category === "bottom" && (
+                    <>
+                      <option value="pants">Trousers / shorts</option>
+                      <option value="skirt">Skirt</option>
+                    </>
+                  )}
+                  {category === "shoes" && (
+                    <option value="shoes">Shoes (both)</option>
+                  )}
+                </select>
+              </label>
+            )}
+            <p className="subtitle">
+              {photoType === "worn"
+                ? "Use a photo of one person. Tops and jackets may be extracted together when layered."
+                : "Use a photo of one clothing item or a pair of shoes, without a person."}{" "}
+              Extraction runs on the computer hosting this app, with no AI
+              credits. Only the cutout is saved to your wardrobe.
+            </p>
+            <button
+              type="button"
+              className="button secondary"
+              disabled={busy}
+              onClick={extract}
+            >
+              {busy ? phase : cutout ? "Extract again" : "Extract clothing"}
+            </button>
+            {cutout && (
+              <>
+                <p className="subtitle" role="status">
+                  Check the edges before saving. Parts hidden by arms, hair, or
+                  other clothing cannot be recovered.
+                </p>
+
+                <button
+                  type="button"
+                  className="button secondary"
+                  disabled={busy}
+                  onClick={() => setShowOriginal(!showOriginal)}
+                >
+                  {showOriginal ? "Show cutout" : "Compare with original"}
+                </button>
+              </>
+            )}
+            {busy && (
+              <p className="subtitle" role="status" aria-live="polite">
+                {phase}
+              </p>
+            )}
+          </div>
+        )}
       </div>
       <div className="editor-form form-stack">
         <span className="eyebrow">THE DETAILS</span>
@@ -1111,7 +1267,12 @@ function Editor({
           Category
           <select
             value={category}
-            onChange={(e) => setCategory(e.target.value as Category)}
+            onChange={(e) => {
+              const next = e.target.value as Category;
+              setCategory(next);
+              setPiece(piecePrompts[next]);
+              resetCutouts();
+            }}
             disabled={busy}
           >
             {categories.map((category) => (
@@ -1143,7 +1304,10 @@ function Editor({
           </p>
         )}
         <div className="form-row">
-          <button className="button primary" disabled={busy}>
+          <button
+            className="button primary"
+            disabled={busy || (!!file && !cutout)}
+          >
             <Check size={18} />
             {busy ? phase : item ? "Save changes" : "Add to wardrobe"}
           </button>

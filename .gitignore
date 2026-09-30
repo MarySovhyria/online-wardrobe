@@ -6,3 +6,8 @@ out/
 !.env.example
 *.tsbuildinfo
 .DS_Store
+
+.venv/
+.local-ai/
+__pycache__/
+*.pyc

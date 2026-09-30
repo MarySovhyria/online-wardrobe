@@ -1333,3 +1333,18 @@ dialog.modal::backdrop {
     transition: none !important;
   }
 }
+
+.cutout-controls {
+  padding: 0 20px 20px;
+}
+
+img.cutout-preview {
+  background-color: #f8f7f2;
+  background-image: conic-gradient(
+    #e9e7df 25%,
+    transparent 0 50%,
+    #e9e7df 0 75%,
+    transparent 0
+  );
+  background-size: 20px 20px;
+}

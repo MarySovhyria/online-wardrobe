@@ -14,14 +14,16 @@
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
     "format": "prettier --write src tests package.json tsconfig.json README.md",
     "format:check": "prettier --check src tests package.json tsconfig.json README.md",
-    "ai:setup": "node scripts/setup-local-ai.mjs",
-    "ai:setup:flux": "node scripts/setup-flux.mjs",
-    "test:ai": ".venv/bin/python -m unittest discover -s local-ai -p \"test_*.py\""
+    "photo:assets": "node scripts/prepare-photo-assets.mjs",
+    "predev": "npm run photo:assets",
+    "prebuild": "npm run photo:assets"
   },
   "dependencies": {
+    "@jsquash/webp": "1.5.0",
     "@supabase/supabase-js": "^2.57.0",
     "lucide-react": "^0.468.0",
     "next": "^16.3.7",
+    "onnxruntime-web": "1.31.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

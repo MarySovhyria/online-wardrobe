@@ -42,3 +42,13 @@ decisions or silently authorize changes to them.
 - Reason: TODO.
 - Consequences: TODO.
 - Supersedes / superseded by: none, unless explicitly authorized and linked.
+
+## DEC-002 — Browser-only standalone photo preparation
+
+- **Date:** 2026-11-24.
+- **Status:** ACCEPTED.
+- **Authority:** Developer selects standalone-only, free browser processing, lighting only, Auto light plus sliders; approves the plan and requests implementation.
+- **Decision:** Retire worn-photo segmentation/local Python and FLUX reconstruction. Use optional browser foreground removal and reversible non-generative lighting for upright standalone clothing; no paid inference or separate AI server.
+- **Reason:** Support Vercel deployment while preserving garment details and avoiding per-photo inference fees.
+- **Consequences:** No wrinkle repair or hidden-fabric reconstruction; model download/device performance matters, so keep-background fallback is required. Existing Supabase data/schema remain unchanged. No deployment authorized.
+- **Evidence:** IDEA-003, APP-002 and approved plan in this session. Earlier photo-processing preferences are historical and superseded by this explicit developer direction.

@@ -12,8 +12,7 @@ reference. The current app is named **The Edit — your personal wardrobe** in R
 
 ## Target User
 
-Known: the developer wants to manage their own wardrobe, using mostly photos of
-clothing worn by someone while also supporting standalone clothing photos.
+Known: the developer wants to manage their own wardrobe. As of 2026-11-24, approved photo input is upright standalone clothing, processed free in the browser for Vercel compatibility (DEC-002). Earlier worn-photo requests are superseded.
 
 TODO: Confirm whether the intended audience remains personal use or includes
 other users, and define their needs. Account support is existing capability,
@@ -29,9 +28,9 @@ not evidence of an approved commercial or multi-user launch strategy.
 
 Derived from supplied requests and documented behaviour:
 
-- Support both worn and standalone clothing photos.
-- Prefer local AI without per-photo paid API credits, as requested previously.
-- Let the user inspect cutouts/generated garments before saving them.
+- Use upright standalone clothing photos, with optional browser foreground removal.
+- Avoid per-photo paid inference; photo preparation runs on the visitor’s device.
+- Let the user inspect and explicitly accept the photo result before saving; preserve garment geometry and avoid generative reconstruction.
 - Keep personal clothing/account data private within the documented ownership model.
 - Provide a responsive wardrobe and an editable, exportable outfit sheet.
 
@@ -40,14 +39,14 @@ TODO: Confirm any additional product principles; do not infer them from framewor
 ## MVP Outcomes
 
 Existing requested outcomes: add and organise clothing; extract reusable cutouts;
-optionally generate upright flat-lays; assemble/save outfits and export a collage.
+adjust lighting on upright standalone photos; assemble/save outfits and export a collage.
 
 TODO: Developer-approved MVP boundary, current milestone, release audience and
 success measures. Existing features are not an automatically accepted launch gate.
 
 ## Explicit Non-goals
 
-Bootstrap non-goal: changing or implementing application features.
+Current photo non-goals (DEC-002): worn-photo extraction, hidden-fabric generation, smoothing/wrinkle repair and paid inference. Bootstrap-only non-goal was application changes during workspace installation.
 
 TODO: Define product non-goals. Missing categories, sharing, recommendations and
 unsupported hosting are current limitations, not approved permanent non-goals.

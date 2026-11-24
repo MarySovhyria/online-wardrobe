@@ -6,12 +6,12 @@ Initialized from README/source and the supplied team specification on 2026-10-13
 | --------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | Clothing item / piece       | One saved garment, accessory or shoe pair, with category, optional name/colour and private image            |
 | Category                    | One of top, bottom, jacket (Outerwear), cardigan, hat, shoes, jewelry; distinct from model extraction class |
-| Worn photo                  | Photo of someone wearing clothing; segmentation selects visible garment pixels                              |
+| Worn photo                  | Historical input mode, retired by DEC-002; new uploads require standalone items                             |
 | Standalone photo            | Clothing item or shoe pair photographed without a person; foreground background removal                     |
-| Segmentation                | Label-based pixel selection; does not reconstruct hidden fabric                                             |
+| Segmentation                | Pixel-level foreground selection for browser background removal; no fabric reconstruction                   |
 | Cutout                      | Cropped clothing image with transparent background, stored as WebP                                          |
-| Flat-lay                    | Upright, front-facing garment product image; FLUX can generate one, including estimated hidden fabric       |
-| Generated preview           | Reviewable AI image; it may change details and is not stored automatically                                  |
+| Flat-lay                    | Upright product-style clothing photo; generated reconstruction retired by DEC-002                           |
+| Generated preview           | Historical FLUX output, retired; current previews use original pixels plus optional mask/lighting           |
 | Outfit selection            | Distinct selected piece IDs, including multiple pieces per category, saved to Supabase                      |
 | Outfit composition / layout | Collage position, rotation, scale and flip; persisted in the current browser                                |
 | Outfit sheet                | One-page composition exported as a 1600×2240 PNG                                                            |
@@ -23,3 +23,5 @@ Initialized from README/source and the supplied team specification on 2026-10-13
 
 Add terms only when grounded in supplied requirements or current evidence. Keep
 category, extraction class, saved selection and local composition distinct.
+
+Current photo preparation (DEC-002): optional browser foreground removal, bounded Auto light or manual Brightness/Contrast/Shadows, then explicit acceptance. Original comparison changes the display only; only accepted WebP output is uploaded.

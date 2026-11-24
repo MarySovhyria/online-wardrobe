@@ -16,7 +16,6 @@ import {
   Plus,
   Shirt,
   Trash2,
-  Upload,
   X,
 } from "lucide-react";
 import {
@@ -24,7 +23,6 @@ import {
   authCallback,
   categories,
   labels,
-  preparePhoto,
   type Category,
   type Clothing,
   type Outfit,
@@ -41,17 +39,10 @@ import {
   type Pose,
 } from "@/lib/outfit-layout";
 
-import { createCutout } from "@/lib/clothing-cutout";
-
-const piecePrompts: Record<Category, string> = {
-  top: "upper",
-  bottom: "pants",
-  jacket: "upper",
-  cardigan: "upper",
-  hat: "upper",
-  jewelry: "upper",
-  shoes: "shoes",
-};
+import {
+  PhotoPreparation,
+  type PhotoChoice,
+} from "@/components/photo-preparation";
 
 type View = "wardrobe" | "studio" | "saved" | "add";
 type Selection = string[];
@@ -1169,143 +1160,24 @@ function Editor({
   const [name, setName] = useState(item?.name || "");
   const [category, setCategory] = useState<Category>(item?.category || "top");
   const [color, setColor] = useState(item?.color || "");
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState(item?.url || "");
-  const accessory = category === "hat" || category === "jewelry";
-  const [photoType, setPhotoType] = useState(
-    item?.category === "hat" || item?.category === "jewelry"
-      ? "standalone"
-      : "worn",
-  );
-  const [piece, setPiece] = useState(piecePrompts[item?.category || "top"]);
-  const [cutout, setCutout] = useState<Blob | null>(null);
-  const [flatlay, setFlatlay] = useState<File | null>(null);
-  const [showOriginal, setShowOriginal] = useState(false);
+  const [photoChoice, setPhotoChoice] = useState<PhotoChoice>({
+    photo: null,
+    hasReplacement: false,
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [phase, setPhase] = useState("");
-  useEffect(() => {
-    const source = showOriginal ? file : cutout || flatlay || file;
-    if (!source) return;
-    const url = URL.createObjectURL(source);
-    setPreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file, cutout, flatlay, showOriginal]);
-  function resetCutouts(clearFlatlay = true) {
-    setCutout(null);
-    if (clearFlatlay) setFlatlay(null);
-    setShowOriginal(false);
-  }
-  async function createFlatlay() {
-    if (!file || busy) return;
-    setBusy(true);
-    setError("");
-    setPhase("Creating flat-lay…");
-    try {
-      const photo = await preparePhoto(file);
-      const { data, error } = await supabase!.auth.getSession();
-      if (error || !data.session)
-        throw new Error("Please sign in again before creating a flat-lay.");
-      const garment = category === "jacket" ? "jacket" : piece;
-      const response = await fetch(`/api/create-flatlay?piece=${garment}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${data.session.access_token}`,
-          "Content-Type": "image/webp",
-        },
-        body: photo,
-        signal: AbortSignal.timeout(930_000),
-      });
-      const result = await response
-        .json()
-        .catch(() => ({ error: "FLUX is unavailable. Please try again." }));
-      if (!response.ok)
-        throw new Error(result.error || "Could not create a flat-lay.");
-      if (
-        typeof result.image !== "string" ||
-        !result.image.startsWith("data:image/png;base64,")
-      )
-        throw new Error("FLUX returned an unreadable image. Please try again.");
-      const generated = await (await fetch(result.image)).blob();
-      resetCutouts();
-      setFlatlay(new File([generated], "flatlay.png", { type: "image/png" }));
-    } catch (error) {
-      setError(
-        error instanceof Error && error.name === "TimeoutError"
-          ? "FLUX took too long. Try again with other apps closed, or use regular extraction."
-          : message(error),
-      );
-    } finally {
-      setBusy(false);
-      setPhase("");
-    }
-  }
-  async function extract() {
-    if (!file || busy) return;
-    setBusy(true);
-    setError("");
-    resetCutouts(false);
-    try {
-      setPhase("Preparing photo…");
-      const photo = await preparePhoto(flatlay || file);
-      const { data, error } = await supabase!.auth.getSession();
-      if (error || !data.session)
-        throw new Error("Please sign in again before extracting clothing.");
-      setPhase("Finding your clothing…");
-      const response = await fetch(
-        `/api/extract-clothing?mode=${flatlay ? "standalone" : photoType}&piece=${piece}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${data.session.access_token}`,
-            "Content-Type": "image/webp",
-          },
-          body: photo,
-          signal: AbortSignal.timeout(195_000),
-        },
-      );
-      const result = await response.json().catch(() => ({
-        error: "The clothing service is unavailable. Please try again later.",
-      }));
-      if (!response.ok)
-        throw new Error(
-          result.error || "Could not extract this piece. Please try again.",
-        );
-      setPhase("Making your cutout…");
-      setCutout(await createCutout(photo, result.masks[0]));
-    } catch (error) {
-      setError(
-        error instanceof Error && error.name === "TimeoutError"
-          ? "Extraction took too long. Please try again later."
-          : message(error),
-      );
-    } finally {
-      setBusy(false);
-      setPhase("");
-    }
-  }
-  function choose(file?: File) {
-    if (!file) return;
-    if (
-      !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
-      file.size > 10 * 1024 * 1024
-    ) {
-      setError("Choose a JPEG, PNG, or WebP image smaller than 10 MB.");
-      return;
-    }
-    setFile(file);
-    resetCutouts();
-    setError("");
-  }
   async function save(event: FormEvent) {
     event.preventDefault();
     if (busy) return;
-    if (!file && !item) {
+    if (!photoChoice.hasReplacement && !item) {
       setError("Choose a photo first.");
       return;
     }
-    if (file && !cutout) {
-      setError("Extract and preview your clothing before saving.");
+    if (photoChoice.hasReplacement && !photoChoice.photo) {
+      setError(
+        "Review the current preview and choose Use this photo before saving.",
+      );
       return;
     }
     setBusy(true);
@@ -1314,8 +1186,8 @@ function Editor({
     let persisted = false;
     try {
       let path = item?.image_path;
-      if (file) {
-        const photo = cutout!;
+      if (photoChoice.hasReplacement) {
+        const photo = photoChoice.photo!;
         path = `${user.id}/${crypto.randomUUID()}.webp`;
         setPhase("Uploading photo…");
         const { error } = await supabase!.storage
@@ -1372,196 +1244,11 @@ function Editor({
   }
   return (
     <form className="editor-layout" onSubmit={save}>
-      <div className="editor-preview">
-        <label
-          className="upload-zone"
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => {
-            e.preventDefault();
-            if (!busy) choose(e.dataTransfer.files[0]);
-          }}
-        >
-          {preview ? (
-            <img
-              className={`upload-preview${cutout && !showOriginal ? " cutout-preview" : ""}`}
-              src={preview}
-              alt={
-                cutout && !showOriginal
-                  ? "Extracted clothing on a transparent background"
-                  : flatlay && !showOriginal
-                    ? "AI-generated flat-lay preview"
-                    : "Original clothing photo"
-              }
-            />
-          ) : (
-            <>
-              <Upload size={40} strokeWidth={1} />
-              <h2>A new favorite?</h2>
-              <p>
-                Tap to choose a photo
-                <br />
-                or drop one here.
-              </p>
-            </>
-          )}
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            aria-label={
-              item ? "Replace clothing photo" : "Choose clothing photo"
-            }
-            disabled={busy}
-            onChange={(e) => {
-              choose(e.target.files?.[0]);
-              e.target.value = "";
-            }}
-          />
-          <span className="button secondary">
-            {preview ? "Choose another photo" : "Choose photo"}
-          </span>
-        </label>
-        <p className="subtitle">
-          JPEG, PNG or WebP · Up to 10 MB
-          <br />
-          Works with clothing worn by someone or photographed on its own.
-        </p>
-        {file && (
-          <div className="cutout-controls form-stack">
-            <label className="field">
-              Photo type
-              <select
-                value={photoType}
-                disabled={busy}
-                onChange={(e) => {
-                  setPhotoType(e.target.value);
-                  resetCutouts();
-                }}
-              >
-                <option value="worn" disabled={accessory}>
-                  Someone wearing the clothing
-                </option>
-                <option value="standalone">Clothing on its own</option>
-              </select>
-            </label>
-            {photoType === "worn" && (
-              <label className="field">
-                Piece to extract
-                <select
-                  value={piece}
-                  disabled={busy}
-                  onChange={(e) => {
-                    setPiece(e.target.value);
-                    resetCutouts();
-                  }}
-                >
-                  {(category === "top" ||
-                    category === "jacket" ||
-                    category === "cardigan") && (
-                    <option value="upper">Top / outer layer</option>
-                  )}
-                  {category === "bottom" && (
-                    <>
-                      <option value="pants">Trousers / shorts</option>
-                      <option value="skirt">Skirt</option>
-                    </>
-                  )}
-                  {category === "shoes" && (
-                    <option value="shoes">Shoes (both)</option>
-                  )}
-                </select>
-              </label>
-            )}
-            <p className="subtitle">
-              {accessory
-                ? "Use a photo of the item on its own. Worn-photo extraction isn’t supported for this category."
-                : photoType === "worn"
-                  ? "Use a photo of one person. Tops, cardigans and outerwear may be extracted together when layered."
-                  : "Use a photo of one clothing item or a pair of shoes, without a person."}{" "}
-              Extraction runs on the computer hosting this app, with no AI
-              credits. Only the cutout is saved to your wardrobe.
-            </p>
-            {!accessory && (
-              <>
-                <button
-                  type="button"
-                  className="button secondary"
-                  disabled={busy}
-                  onClick={createFlatlay}
-                >
-                  {flatlay
-                    ? "Try another flat-lay"
-                    : "Create flat-lay · FLUX.2 Klein"}
-                </button>
-                <p className="subtitle">
-                  Optional: straighten the garment and recreate hidden fabric
-                  with local AI. Generated details may differ from your
-                  clothing. This can take several minutes. Keep this page open
-                  while it runs.
-                </p>
-              </>
-            )}
-            {flatlay && (
-              <>
-                <p className="subtitle" role="status">
-                  AI-generated preview. Check the color, pattern and shape
-                  against the original, then extract the background before
-                  saving.
-                </p>
-                <button
-                  type="button"
-                  className="button secondary"
-                  disabled={busy}
-                  onClick={() => resetCutouts()}
-                >
-                  Discard flat-lay · use original
-                </button>
-              </>
-            )}
-            <button
-              type="button"
-              className="button secondary"
-              disabled={busy}
-              onClick={extract}
-            >
-              {busy
-                ? "Processing…"
-                : cutout
-                  ? "Extract again"
-                  : flatlay
-                    ? "Use flat-lay · remove background"
-                    : "Extract clothing"}
-            </button>
-            {cutout && (
-              <>
-                <p className="subtitle" role="status">
-                  {flatlay
-                    ? "Check the edges and generated details before saving. Hidden fabric is an AI estimate."
-                    : "Check the edges before saving. Parts hidden by arms, hair, or other clothing cannot be recovered."}
-                </p>
-              </>
-            )}
-            {(cutout || flatlay) && (
-              <button
-                type="button"
-                className="button secondary"
-                disabled={busy}
-                onClick={() => setShowOriginal(!showOriginal)}
-              >
-                {showOriginal
-                  ? cutout
-                    ? "Show cutout"
-                    : "Show flat-lay"
-                  : "Compare with original"}
-              </button>
-            )}
-            {busy && (
-              <p className="subtitle" role="status" aria-live="polite">
-                {phase}
-              </p>
-            )}
-          </div>
-        )}
-      </div>
+      <PhotoPreparation
+        existingUrl={item?.url}
+        disabled={busy}
+        onChange={setPhotoChoice}
+      />
       <div className="editor-form form-stack">
         <span className="eyebrow">THE DETAILS</span>
         <h2>
@@ -1584,10 +1271,6 @@ function Editor({
             onChange={(e) => {
               const next = e.target.value as Category;
               setCategory(next);
-              setPiece(piecePrompts[next]);
-              if (next === "hat" || next === "jewelry")
-                setPhotoType("standalone");
-              resetCutouts();
             }}
             disabled={busy}
           >
@@ -1622,7 +1305,11 @@ function Editor({
         <div className="form-row">
           <button
             className="button primary"
-            disabled={busy || (!!file && !cutout)}
+            disabled={
+              busy ||
+              (!item && !photoChoice.hasReplacement) ||
+              (photoChoice.hasReplacement && !photoChoice.photo)
+            }
           >
             <Check size={18} />
             {busy ? phase : item ? "Save changes" : "Add to wardrobe"}

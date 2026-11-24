@@ -1,3 +1,5 @@
+import { encodePhoto } from "./photo-encoding.ts";
+
 // Keep the original RGB values; use the segmentation mask only for transparency.
 export function maskPixels(
   pixels: Uint8ClampedArray,
@@ -82,16 +84,7 @@ export async function createCutout(
         bounds.width,
         bounds.height,
       );
-      return await new Promise<Blob>((resolve, reject) =>
-        cropped.toBlob(
-          (blob) =>
-            blob && blob.type === "image/webp"
-              ? resolve(blob)
-              : reject(new Error("Your browser could not save the cutout.")),
-          "image/webp",
-          0.92,
-        ),
-      );
+      return await encodePhoto(cropped, 0.92);
     } finally {
       mask.close();
     }

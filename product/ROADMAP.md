@@ -5,7 +5,7 @@ No active milestone, deadlines or future ranking were supplied for this bootstra
 
 ## NOW
 
-No active application work. APP-001 completed locally on 2026-11-24; broader next-outcome priorities remain unconfirmed.
+No active implementation outcome. APP-002 completed locally; actual Vercel deployment remains separate and broader next priorities remain unconfirmed.
 
 ## NEXT
 
@@ -21,6 +21,8 @@ No live parked ideas recorded. Add only evaluated ideas with reasons/revisit tri
 
 ## COMPLETED
 
+- 2026-11-24: [APP-002](../tickets/stories/APP-002.md), browser-only standalone photo preparation with optional foreground removal, lighting and explicit acceptance. Local build/Chrome/WebKit and QA PASS; no deployment or new database migration.
+
 - 2026-11-24: [APP-001](../tickets/stories/APP-001.md), dedicated Saved outfits, seven categories and multiple independent outfit pieces. QA PASS; existing Supabase projects require the supplied migration. No production release performed.
 
 The following outcomes have implementation evidence in the existing checkout;
@@ -28,8 +30,8 @@ these are a bootstrap inventory, not retrospectively approved DONE tickets or
 verified production releases:
 
 - Maintain a private wardrobe with account access, clothing metadata and images.
-- Extract visible clothing from worn/standalone photos using local models.
-- Generate optional upright FLUX.2 Klein flat-lay previews for user review.
+- Historically extracted worn/standalone photos using local models; retired by DEC-002/APP-002.
+- Historically generated FLUX.2 Klein previews; retired by DEC-002/APP-002.
 - Compose one-page outfits, save piece selections and export PNG collages.
 - Install the requested AI product-team workspace (2026-10-13; see
   [bootstrap review](../.team/bootstrap-review.md)).

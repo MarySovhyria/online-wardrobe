@@ -1,0 +1,19 @@
+Browser photo background removal uses the unmodified U2NetP model by Xuebin Qin et al.
+Source: https://github.com/xuebinqin/U-2-Net
+Model distribution: https://github.com/danielgatis/rembg/releases/tag/v0.0.0
+Model filename: u2netp.onnx; upstream MD5: 8e83ca70e441ab06c318d82300c84806
+License: Apache License 2.0 (U2NET-LICENSE.txt).
+
+Inference uses ONNX Runtime Web 1.31.1, Copyright (c) Microsoft Corporation.
+Source: https://github.com/microsoft/onnxruntime
+License: MIT (ONNXRUNTIME-LICENSE.txt).
+
+Preprocessing follows rembg's U2netpSession normalization.
+Source: https://github.com/danielgatis/rembg
+
+Safari WebP encoding fallback uses @jsquash/webp 1.5.0 by Jamie Sinclair,
+derived from Google Squoosh (Copyright 2020 Google Inc.), Apache License 2.0.
+Source: https://github.com/jamsinclair/jSquash
+License: JSQUASH-LICENSE.txt.
+The included libwebp codec is Copyright (c) 2010, Google Inc. All rights reserved.
+License: LIBWEBP-LICENSE.txt (BSD-style license).

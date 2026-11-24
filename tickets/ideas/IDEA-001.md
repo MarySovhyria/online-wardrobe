@@ -29,12 +29,12 @@ Source inspection distinguishes two processing paths:
   Mask errors can remove fabric or include unwanted foreground. Image preparation
   and final WebP encoding can also affect detail; this is not pixel-identical
   preservation of the original uploaded file.
-- [FLUX flat-lay generation](../../local-ai/flatlay.py) synthesizes a new 512px
+- FLUX flat-lay generation (`local-ai/flatlay.py`, historical; retired by APP-002) synthesizes a new 512px
   image from a reference limited to 512px. Its prompt asks for faithful details,
   but does not guarantee garment identity or exact hidden fabric.
 - [Editor routing](../../src/app/page.tsx) extracts from the generated photo
   when a flat-lay is present, otherwise from the original prepared photo.
-- [Segmentation](../../local-ai/engine.py) selects garment classes, with known
+- Segmentation (`local-ai/engine.py`, historical; retired by APP-002) selects garment classes, with known
   occlusion and layered-garment limitations. Worn and standalone inputs differ.
 - README/STATE report historical FLUX sleeve/colour drift. This discovery has
   not reproduced the developer's current failure or inspected private photos.
@@ -156,3 +156,5 @@ None. Product discovery precedes implementation stories and READY gates.
 - 2026-10-13 | Orchestrator | captured IDEA → DISCOVERY | Developer requested discovery; PO review assigned, fidelity-path clarification requested.
 
 - 2026-10-13 | Product Owner → Orchestrator | DISCOVERY retained | INVESTIGATE recommendation recorded; stage evidence plan prepared; user clarifications pending.
+
+2026-11-24 context: DEC-002/APP-002 supersedes the worn-photo and generative pipeline with standalone browser preparation; original fidelity observations remain historical, not newly reproduced.

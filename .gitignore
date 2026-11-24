@@ -12,3 +12,6 @@ out/
 .local-ai/
 __pycache__/
 *.pyc
+
+# Generated, checksum-verified browser photo model and runtime assets
+public/photo-assets/

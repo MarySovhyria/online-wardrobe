@@ -1,3 +1,4 @@
+import { encodePhoto } from "./photo-encoding.ts";
 import { createClient } from "@supabase/supabase-js";
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -69,16 +70,7 @@ export async function preparePhoto(file: File): Promise<Blob> {
     const context = canvas.getContext("2d");
     if (!context) throw new Error("Your browser could not process this image.");
     context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    return await new Promise<Blob>((resolve, reject) =>
-      canvas.toBlob(
-        (blob) =>
-          blob
-            ? resolve(blob)
-            : reject(new Error("Could not process this photo.")),
-        "image/webp",
-        0.88,
-      ),
-    );
+    return await encodePhoto(canvas, 0.88);
   } finally {
     bitmap.close();
   }

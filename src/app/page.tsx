@@ -29,6 +29,7 @@ import {
 } from "@/lib/supabase";
 
 import { OutfitCollage, downloadCollage } from "@/components/outfit-collage";
+import { MobileOutfitTools } from "@/components/mobile-outfit-tools";
 import {
   poseFor,
   itemPose,
@@ -362,6 +363,7 @@ function Wardrobe({ user }: { user: User }) {
   }, [user.id]);
   const [slot, setSlot] = useState<Category>("top");
   const [activeId, setActiveId] = useState<string>();
+  const [mobilePickerOpen, setMobilePickerOpen] = useState(false);
   const [outfitName, setOutfitName] = useState("");
   const [busy, setBusy] = useState(false);
   const [deletion, setDeletion] = useState<{
@@ -416,6 +418,7 @@ function Wardrobe({ user }: { user: User }) {
   }, [reload]);
   function navigate(next: View) {
     setView(next);
+    if (next === "studio") window.scrollTo({ top: 0, behavior: "instant" });
     setEditing(null);
     setNotice("");
     setError("");
@@ -529,7 +532,8 @@ function Wardrobe({ user }: { user: User }) {
       ),
     );
     setSelection((previous) => previous.filter((selected) => selected !== id));
-    if (activeId === id) setActiveId(undefined);
+    if (activeId === id)
+      setActiveId(collageItems.find((item) => item.id !== id)?.id);
   }
   function togglePiece(item: Clothing) {
     if (selection.includes(item.id)) {
@@ -577,7 +581,7 @@ function Wardrobe({ user }: { user: User }) {
           : b.created_at.localeCompare(a.created_at),
     );
   return (
-    <div className="app-shell">
+    <div className={`app-shell${view === "studio" ? " studio-view" : ""}`}>
       <aside className="sidebar">
         <a className="brand" href="/" aria-label="The Edit home">
           <Shirt className="brand-mark" /> THE EDIT
@@ -800,152 +804,184 @@ function Wardrobe({ user }: { user: User }) {
         ) : view === "studio" ? (
           <>
             <div className="studio-layout">
-              <section>
-                <div className="collage-toolbar">
-                  <div>
-                    <span className="eyebrow">THE OUTFIT BOARD</span>
-                    <p>A whole look, on one page.</p>
+              <section className="studio-composition">
+                <div
+                  className={`studio-mobile-workspace${mobilePickerOpen ? " is-picking" : ""}`}
+                >
+                  <div className="collage-toolbar">
+                    <div>
+                      <span className="eyebrow">THE OUTFIT BOARD</span>
+                      <p>A whole look, on one page.</p>
+                    </div>
+                    <button
+                      className="button secondary"
+                      type="button"
+                      disabled={busy || exporting || !collageItems.length}
+                      onClick={() => setLayout({})}
+                    >
+                      Auto-arrange
+                    </button>
                   </div>
-                  <button
-                    className="button secondary"
-                    type="button"
-                    disabled={busy || exporting || !collageItems.length}
-                    onClick={() => setLayout({})}
-                  >
-                    Auto-arrange
-                  </button>
+                  <div className="studio-canvas">
+                    <OutfitCollage
+                      items={collageItems}
+                      layout={layout}
+                      active={activeId}
+                      onSelect={setActiveId}
+                      onChange={updatePose}
+                    />
+                  </div>
+                  <MobileOutfitTools
+                    items={items}
+                    selectedIds={selection}
+                    selectedItems={collageItems}
+                    activeId={activeId}
+                    activePose={activePose}
+                    category={slot}
+                    onCategory={setSlot}
+                    onSelect={setActiveId}
+                    onToggle={togglePiece}
+                    onRemove={removePiece}
+                    onPose={updatePose}
+                    onReset={(id) => {
+                      const item = collageItems.find((item) => item.id === id);
+                      if (item)
+                        updatePose(id, itemPose(item, collageItems, {}));
+                    }}
+                    onAdd={() => navigate("add")}
+                    onPickerChange={setMobilePickerOpen}
+                    disabled={busy || exporting}
+                  />
                 </div>
-                <OutfitCollage
-                  items={collageItems}
-                  layout={layout}
-                  active={activeId}
-                  onSelect={setActiveId}
-                  onChange={updatePose}
-                />
-                <p className="subtitle collage-hint">
-                  Drag a piece to move it. Select one to straighten, resize, or
-                  flip it.
-                </p>
-                {!!collageItems.length && (
-                  <div
-                    className="filters selected-pieces"
-                    aria-label="Selected outfit pieces"
-                  >
-                    {collageItems.map((item) => (
-                      <button
-                        type="button"
-                        className={`filter ${activeId === item.id ? "active" : ""}`}
-                        aria-pressed={activeId === item.id}
-                        key={item.id}
-                        onClick={() => setActiveId(item.id)}
-                      >
-                        {item.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {activePiece && (
-                  <div className="collage-adjustments">
-                    <div className="collage-adjustment-heading">
-                      <strong>{activePiece.name}</strong>
-                      <button
-                        type="button"
-                        className="inline-link"
-                        onClick={() => removePiece(activePiece.id)}
-                      >
-                        Remove piece
-                      </button>
+                <div className="desktop-studio-controls">
+                  <p className="subtitle collage-hint">
+                    Drag a piece to move it. Select one to straighten, resize,
+                    or flip it.
+                  </p>
+                  {!!collageItems.length && (
+                    <div
+                      className="filters selected-pieces"
+                      aria-label="Selected outfit pieces"
+                    >
+                      {collageItems.map((item) => (
+                        <button
+                          type="button"
+                          className={`filter ${activeId === item.id ? "active" : ""}`}
+                          aria-pressed={activeId === item.id}
+                          key={item.id}
+                          onClick={() => setActiveId(item.id)}
+                        >
+                          {item.name}
+                        </button>
+                      ))}
                     </div>
-                    <label className="field">
-                      Straighten <span>{activePose.rotation}°</span>
-                      <input
-                        type="range"
-                        min="-180"
-                        max="180"
-                        step="1"
-                        value={activePose.rotation}
-                        onChange={(e) =>
-                          updatePose(activePiece.id, {
-                            ...activePose,
-                            rotation: Number(e.target.value),
-                          })
-                        }
-                      />
-                    </label>
-                    <label className="field">
-                      Size <span>{Math.round(activePose.scale * 100)}%</span>
-                      <input
-                        type="range"
-                        min="40"
-                        max="160"
-                        step="1"
-                        value={Math.round(activePose.scale * 100)}
-                        onChange={(e) =>
-                          updatePose(activePiece.id, {
-                            ...activePose,
-                            scale: Number(e.target.value) / 100,
-                          })
-                        }
-                      />
-                    </label>
-                    <div className="form-row">
-                      <button
-                        type="button"
-                        className="button secondary"
-                        aria-label="Rotate left 90 degrees"
-                        onClick={() =>
-                          updatePose(activePiece.id, {
-                            ...activePose,
-                            rotation: wrapRotation(activePose.rotation - 90),
-                          })
-                        }
-                      >
-                        <RotateCcw size={16} />
-                        90°
-                      </button>
-                      <button
-                        type="button"
-                        className="button secondary"
-                        aria-label="Rotate right 90 degrees"
-                        onClick={() =>
-                          updatePose(activePiece.id, {
-                            ...activePose,
-                            rotation: wrapRotation(activePose.rotation + 90),
-                          })
-                        }
-                      >
-                        <RotateCw size={16} />
-                        90°
-                      </button>
-                      <button
-                        type="button"
-                        className="button secondary"
-                        aria-pressed={activePose.flip}
-                        onClick={() =>
-                          updatePose(activePiece.id, {
-                            ...activePose,
-                            flip: !activePose.flip,
-                          })
-                        }
-                      >
-                        Flip
-                      </button>
-                      <button
-                        type="button"
-                        className="button secondary"
-                        onClick={() =>
-                          updatePose(
-                            activePiece.id,
-                            itemPose(activePiece, collageItems, {}),
-                          )
-                        }
-                      >
-                        Reset piece
-                      </button>
+                  )}
+                  {activePiece && (
+                    <div className="collage-adjustments">
+                      <div className="collage-adjustment-heading">
+                        <strong>{activePiece.name}</strong>
+                        <button
+                          type="button"
+                          className="inline-link"
+                          onClick={() => removePiece(activePiece.id)}
+                        >
+                          Remove piece
+                        </button>
+                      </div>
+                      <label className="field">
+                        Straighten <span>{activePose.rotation}°</span>
+                        <input
+                          type="range"
+                          min="-180"
+                          max="180"
+                          step="1"
+                          value={activePose.rotation}
+                          onChange={(e) =>
+                            updatePose(activePiece.id, {
+                              ...activePose,
+                              rotation: Number(e.target.value),
+                            })
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        Size <span>{Math.round(activePose.scale * 100)}%</span>
+                        <input
+                          type="range"
+                          min="40"
+                          max="160"
+                          step="1"
+                          value={Math.round(activePose.scale * 100)}
+                          onChange={(e) =>
+                            updatePose(activePiece.id, {
+                              ...activePose,
+                              scale: Number(e.target.value) / 100,
+                            })
+                          }
+                        />
+                      </label>
+                      <div className="form-row">
+                        <button
+                          type="button"
+                          className="button secondary"
+                          aria-label="Rotate left 90 degrees"
+                          onClick={() =>
+                            updatePose(activePiece.id, {
+                              ...activePose,
+                              rotation: wrapRotation(activePose.rotation - 90),
+                            })
+                          }
+                        >
+                          <RotateCcw size={16} />
+                          90°
+                        </button>
+                        <button
+                          type="button"
+                          className="button secondary"
+                          aria-label="Rotate right 90 degrees"
+                          onClick={() =>
+                            updatePose(activePiece.id, {
+                              ...activePose,
+                              rotation: wrapRotation(activePose.rotation + 90),
+                            })
+                          }
+                        >
+                          <RotateCw size={16} />
+                          90°
+                        </button>
+                        <button
+                          type="button"
+                          className="button secondary"
+                          aria-pressed={activePose.flip}
+                          onClick={() =>
+                            updatePose(activePiece.id, {
+                              ...activePose,
+                              flip: !activePose.flip,
+                            })
+                          }
+                        >
+                          Flip
+                        </button>
+                        <button
+                          type="button"
+                          className="button secondary"
+                          onClick={() =>
+                            updatePose(
+                              activePiece.id,
+                              itemPose(activePiece, collageItems, {}),
+                            )
+                          }
+                        >
+                          Reset piece
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )}
-                <form className="form-stack" onSubmit={saveOutfit}>
+                  )}
+                </div>
+                <form
+                  className="form-stack studio-save-form"
+                  onSubmit={saveOutfit}
+                >
                   <label className="field">
                     Give this look a name
                     <input
@@ -991,7 +1027,7 @@ function Wardrobe({ user }: { user: User }) {
                   </p>
                 </form>
               </section>
-              <section className="studio-panel">
+              <section className="studio-panel desktop-studio-picker">
                 <span className="eyebrow">THE FINISHING TOUCHES</span>
                 <h2>Pick your {labels[slot].toLowerCase()}</h2>
                 <p className="subtitle" role="status">
@@ -1004,6 +1040,7 @@ function Wardrobe({ user }: { user: User }) {
                       className={`filter ${slot === category ? "active" : ""}`}
                       aria-pressed={slot === category}
                       key={category}
+                      data-studio-category={category}
                       onClick={() => setSlot(category)}
                     >
                       {labels[category]}

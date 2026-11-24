@@ -1498,3 +1498,128 @@ button.collage-piece:hover:not(:disabled) {
   height: 18px;
   accent-color: var(--olive);
 }
+
+/* Keep the composition and editing tools together on a phone. */
+@media (max-width: 760px) {
+  .studio-view .main-content {
+    padding: 12px 12px calc(88px + env(safe-area-inset-bottom, 0px));
+  }
+  .studio-view .page-header {
+    min-height: 44px;
+    margin-bottom: 12px;
+    gap: 8px;
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+  .studio-view .page-header .eyebrow,
+  .studio-view .page-header .subtitle {
+    display: none;
+  }
+  .studio-view .page-header h1 {
+    font-size: 1.75rem;
+    line-height: 1.2;
+    margin: 0;
+  }
+  .studio-view .header-actions {
+    width: auto;
+    flex: none;
+  }
+  .studio-mobile-workspace {
+    height: calc(100dvh - 146px - env(safe-area-inset-bottom, 0px));
+    min-height: 420px;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+    gap: 6px;
+  }
+  .studio-mobile-workspace > .collage-toolbar {
+    margin: 0;
+    min-height: 40px;
+    flex-wrap: nowrap;
+  }
+  .studio-mobile-workspace > .collage-toolbar .eyebrow {
+    display: none;
+  }
+  .studio-mobile-workspace > .collage-toolbar p {
+    font-size: 1rem;
+    margin: 0;
+  }
+  .studio-mobile-workspace > .collage-toolbar .button {
+    min-height: 44px;
+    padding: 8px 12px;
+    font-size: 0.75rem;
+  }
+  .studio-canvas {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .studio-canvas > .collage-board {
+    height: 100%;
+    width: auto;
+    max-width: 100%;
+    aspect-ratio: 5 / 7;
+    flex: none;
+  }
+  .studio-canvas .collage-empty {
+    inset: 8%;
+  }
+  .studio-canvas .collage-empty .eyebrow,
+  .studio-canvas .collage-empty > span:last-child {
+    display: none;
+  }
+  .studio-canvas .collage-empty p {
+    font-size: 1rem;
+  }
+  .studio-mobile-workspace.is-picking .studio-canvas {
+    max-height: calc(52dvh - 138px);
+  }
+  .studio-view .desktop-studio-controls,
+  .studio-view .desktop-studio-picker {
+    display: none;
+  }
+  .studio-save-form {
+    margin-top: 24px;
+  }
+  /* The photo stays visible while its lighting controls scroll below it. */
+  .editor-preview.has-photo {
+    display: block;
+    aspect-ratio: auto;
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+  .editor-preview.has-photo .upload-zone {
+    position: sticky;
+    top: 8px;
+    z-index: 5;
+    min-height: 0;
+    padding: 8px;
+    gap: 6px;
+    background: var(--surface);
+    box-shadow: 0 5px 14px rgb(41 44 38 / 8%);
+  }
+  .editor-preview.has-photo .upload-preview {
+    height: 25dvh;
+    width: 100%;
+    max-height: 230px;
+    aspect-ratio: auto;
+    object-fit: contain;
+  }
+  .editor-preview.has-photo .upload-zone .button {
+    min-height: 36px;
+    padding: 6px 12px;
+    font-size: 0.75rem;
+  }
+  .editor-preview.has-photo .upload-zone input[type="file"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    clip-path: inset(50%);
+    overflow: hidden;
+  }
+  .editor-preview.has-photo .cutout-controls .field {
+    scroll-margin-top: calc(25dvh + 80px);
+  }
+}

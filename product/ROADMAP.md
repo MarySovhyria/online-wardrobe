@@ -5,7 +5,7 @@ No active milestone, deadlines or future ranking were supplied for this bootstra
 
 ## NOW
 
-No active implementation outcome. APP-002 completed locally; actual Vercel deployment remains separate and broader next priorities remain unconfirmed.
+No active approved outcome.
 
 ## NEXT
 
@@ -20,6 +20,8 @@ TODO: No approved later outcomes recorded.
 No live parked ideas recorded. Add only evaluated ideas with reasons/revisit triggers.
 
 ## COMPLETED
+
+- 2026-11-24: [APP-003](../tickets/stories/APP-003.md), mobile category picker, controls beside the outfit board and sticky photo-lighting preview. Local Chrome/WebKit and independent QA PASS; no deployment.
 
 - 2026-11-24: [APP-002](../tickets/stories/APP-002.md), browser-only standalone photo preparation with optional foreground removal, lighting and explicit acceptance. Local build/Chrome/WebKit and QA PASS; no deployment or new database migration.
 

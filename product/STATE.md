@@ -1,6 +1,6 @@
 # Current product reality
 
-Snapshot: 2026-11-24, APP-002 completed working tree. IMPLEMENTED describes inspected source, not a production release. Live Supabase configuration and Vercel deployment remain unverified.
+Snapshot: 2026-11-24, APP-003 completed working tree. IMPLEMENTED describes inspected source, not a production release. Live Supabase configuration and Vercel deployment remain unverified.
 
 | Capability                                                         | State           | Evidence                                                                                             | Limits / verification boundary                                                                                                                                                                    |
 | ------------------------------------------------------------------ | --------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -20,6 +20,8 @@ Snapshot: 2026-11-24, APP-002 completed working tree. IMPLEMENTED describes insp
 | AI product-team workflow                                           | IMPLEMENTED     | [entry instructions](../AGENTS.md), [workflow](../.team/workflow.md)                                 | Request-driven coordination, no background scheduler or external integration.                                                                                                                     |
 
 ## Verification Boundary
+
+APP-003 adds mobile category buttons, a native bottom-sheet clothing picker, preview-adjacent transform controls and sticky photo-lighting preview. Chrome and WebKit checks at 390×844 and 375×667 passed selection, independent transforms, focus/dismissal, scrolling, desktop resize, mocked save/reopen and actual PNG download. Existing 23 tests, build, typecheck and formatting passed. No new database migration. Synthetic images/mocked Supabase were used; physical-phone and production verification remain outside this change. See [review](../docs/operations/APP-003-review.md).
 
 APP-002 local checks passed: independent QA 23/23 tests, production build, typecheck and formatting. Real Chrome 158.0.8127.37 and WebKit 27.2 ran shipped inference and the full editor workflow against mocked Supabase storage/account routes, including exact accepted upload bytes, model-failure/retry/cancel, keep-background save, metadata-only editing, legacy repeated-category outfits/export and a 390px viewport. Native/WebAssembly WebP encoding verified in both engines. Model execution used a synthetic shirt; real garment edge accuracy and device performance remain unverified. See [review](../docs/operations/APP-002-review.md). No live Supabase, actual Vercel deployment or new migration performed.
 

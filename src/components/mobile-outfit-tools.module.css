@@ -1,0 +1,228 @@
+.mobile {
+  display: none;
+}
+@media (max-width: 760px) {
+  .mobile {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+  .mobile button {
+    min-height: 44px;
+    border: 1px solid var(--line, #e4dfd7);
+    background: #fff;
+    border-radius: 8px;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    padding: 4px 8px;
+    touch-action: manipulation;
+  }
+  .mobile button[aria-pressed="true"] {
+    background: #efece5;
+    border-color: #70634d;
+  }
+  .mobile button:disabled {
+    opacity: 0.45;
+  }
+  .mobile button:focus-visible,
+  .mobile input:focus-visible {
+    outline: 2px solid #70634d;
+    outline-offset: 2px;
+  }
+  .selected {
+    display: flex;
+    gap: 5px;
+    overflow-x: auto;
+    min-height: 44px;
+    align-items: center;
+    scrollbar-width: none;
+  }
+  .selected button {
+    flex: 0 0 auto;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .selected > span {
+    font-size: 12px;
+    color: #6d665e;
+  }
+  .controls {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+  }
+  .rotateControls {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .rotateControls .tools button {
+    flex: 1;
+  }
+  .tools {
+    display: flex;
+    gap: 2px;
+  }
+  .tools button {
+    padding-inline: 6px;
+  }
+  .adjustment {
+    min-width: 0;
+  }
+  .adjustment label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 44px;
+  }
+  .adjustment input {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    margin: 0;
+    accent-color: #70634d;
+  }
+  .adjustment output {
+    min-width: 32px;
+    text-align: right;
+    font-size: 11px;
+  }
+  .actions {
+    display: flex;
+    gap: 2px;
+  }
+  .actions button {
+    flex: 1;
+    min-width: 0;
+    padding-inline: 4px;
+    font-size: 11px;
+  }
+  .categories {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .categories button {
+    padding-inline: 2px;
+  }
+  .sheet {
+    position: fixed;
+    inset: auto 0 0;
+    width: 100%;
+    max-width: none;
+    max-height: 48dvh;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 18px 18px 0 0;
+    background: #faf8f4;
+    color: #302b25;
+    overflow: hidden;
+  }
+  .sheet::backdrop {
+    background: rgb(32 27 22 / 24%);
+  }
+  .sheetContent {
+    display: flex;
+    flex-direction: column;
+    max-height: 48dvh;
+    padding: 8px 12px max(8px, env(safe-area-inset-bottom));
+    box-sizing: border-box;
+  }
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .header h2 {
+    font-size: 18px;
+    margin: 0;
+  }
+  .header button {
+    width: 44px;
+  }
+  .tabs {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    flex-shrink: 0;
+    padding-bottom: 6px;
+  }
+  .tabs button {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .pieces {
+    display: grid;
+    grid-auto-rows: max-content;
+    align-content: start;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    min-height: 0;
+    padding: 3px 2px;
+  }
+  .piece {
+    display: flex;
+    overflow: hidden;
+    min-height: max-content;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    min-width: 0;
+  }
+  .piece img {
+    flex-shrink: 0;
+    width: 100%;
+    height: 70px;
+    object-fit: contain;
+  }
+  .piece > span {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    font-size: 11px;
+  }
+  .selectionMark {
+    font-weight: 600;
+  }
+  .empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 8px;
+  }
+  .empty p {
+    font-size: 13px;
+    margin: 4px 0 8px;
+  }
+  .footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-shrink: 0;
+    padding-top: 6px;
+    font-size: 12px;
+  }
+  .footer button {
+    min-width: 78px;
+    background: #302b25;
+    color: #fff;
+  }
+  .srOnly {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}

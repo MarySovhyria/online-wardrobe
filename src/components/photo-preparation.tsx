@@ -187,7 +187,9 @@ export function PhotoPreparation({ existingUrl, disabled, onChange }: Props) {
   }
   const displayed = compare ? sourceUrl : resultUrl || sourceUrl || existingUrl;
   return (
-    <div className="editor-preview">
+    <div
+      className={`editor-preview${source || existingUrl ? " has-photo" : ""}`}
+    >
       <label
         className="upload-zone"
         onDragOver={(e) => e.preventDefault()}

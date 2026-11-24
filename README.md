@@ -87,6 +87,8 @@ Use a modern browser with Canvas and WebAssembly. Background removal additionall
 
 Open **Outfit studio** and select pieces from your wardrobe; you can select several pieces from the same category. Open **Saved outfits** to browse, reopen or delete saved looks. The white portrait sheet arranges tops above bottoms, with shoes below and a jacket alongside. Use **Auto-arrange** to restore that layout, or select a piece and drag it. Arrow keys move the focused piece; Shift + arrow moves it farther. The **Straighten** slider and 90° buttons rotate a cutout; **Size**, **Flip**, and **Reset piece** adjust its appearance. The layout keeps each piece inside the page.
 
+On mobile, all seven category buttons sit beside the outfit board. Choose one to open a bottom-sheet picker; its clothing list scrolls independently and supports multiple pieces. Select a piece to use the nearby Rotate, Size and Actions controls while watching the board. The photo editor also keeps its preview visible while adjusting lighting.
+
 **Download PNG** exports a 1600 × 2240 image on a white background, using the same positions, rotation, size, and layer order as the preview. Selection outlines and editing controls are omitted. Downloads need access to the signed clothing photo URLs; refresh the wardrobe if a photo has expired.
 
 **Save outfit** saves the clothing selection to Supabase and its composition to this browser's local storage, scoped to your account and outfit ID. Reopening a saved outfit here restores the composition; other browsers use the default arrangement. Clearing browser data also removes custom arrangements. Keep a PNG for a portable copy. Existing databases require the expanded-outfits migration described above.

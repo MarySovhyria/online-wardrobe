@@ -17,7 +17,7 @@ create table public.clothing_items (
     user_id uuid not null default auth.uid()
         references auth.users(id) on delete cascade,
     name text not null check (char_length(name) between 1 and 100),
-    category text not null check (category in ('top', 'bottom', 'jacket', 'shoes')),
+    category text not null check (category in ('top', 'bottom', 'jacket', 'cardigan', 'hat', 'shoes', 'jewelry')),
     color text check (char_length(color) <= 50),
     image_path text not null check (
         starts_with(image_path, user_id::text || '/')
@@ -40,8 +40,8 @@ create table public.outfits (
 create table public.outfit_items (
     outfit_id uuid not null references public.outfits(id) on delete cascade,
     clothing_item_id uuid not null,
-    slot text not null check (slot in ('top', 'bottom', 'jacket', 'shoes')),
-    constraint outfit_items_pkey primary key (outfit_id, slot),
+    slot text not null check (slot in ('top', 'bottom', 'jacket', 'cardigan', 'hat', 'shoes', 'jewelry')),
+    constraint outfit_items_pkey primary key (outfit_id, clothing_item_id),
     constraint outfit_items_clothing_slot_fkey
         foreign key (clothing_item_id, slot)
         references public.clothing_items(id, category)
@@ -85,7 +85,7 @@ create policy outfits_owner on public.outfits
 
 -- Both sides must belong to the caller, including when a link is moved by an
 -- UPDATE. Parent-table RLS also applies to these subqueries. The composite FK
--- cascades category changes into slots; the primary key rejects slot collisions.
+-- cascades category changes into slots; each distinct piece can appear once.
 create policy outfit_items_owner on public.outfit_items
     for all to authenticated
     using (
@@ -115,11 +115,11 @@ create policy outfit_items_owner on public.outfit_items
         )
     );
 
--- Client: supabase.rpc('save_outfit', { p_name, p_items: selection })
--- selection is a JSON object mapping 1..4 slots to clothing item UUID strings.
--- The RPC runs as the caller under RLS. Any validation, FK, or RLS failure
--- aborts the entire call, including the outfit insert (no partial saves).
-create function public.save_outfit(p_name text, p_items jsonb)
+-- Client: supabase.rpc('save_outfit', { p_name, p_items: selectedItemIds })
+-- p_items is a nonempty JSON array of distinct clothing UUID strings. Legacy
+-- category-to-UUID objects remain supported, including category validation.
+-- Ownership is checked under caller RLS; any failure aborts the whole call.
+create or replace function public.save_outfit(p_name text, p_items jsonb)
 returns uuid
 language plpgsql
 security invoker
@@ -128,49 +128,78 @@ as $$
 declare
     v_user_id uuid := auth.uid();
     v_outfit_id uuid;
+    v_item_ids uuid[];
     v_item_count integer;
+    v_link_count integer;
 begin
     if v_user_id is null then
-        raise exception 'Authentication required'
-            using errcode = '42501';
+        raise exception 'Authentication required' using errcode = '42501';
     end if;
-
     if p_name is null or pg_catalog.char_length(p_name) not between 1 and 100 then
         raise exception 'Outfit name must contain 1 to 100 characters'
             using errcode = '22023';
     end if;
 
-    -- Check the type before calling jsonb_each on potentially invalid input.
-    if p_items is null or pg_catalog.jsonb_typeof(p_items) <> 'object' then
-        raise exception 'Items must be a JSON object mapping slots to UUID strings'
+    if p_items is null or pg_catalog.jsonb_typeof(p_items) not in ('array', 'object') then
+        raise exception 'Items must be an array of UUID strings or a legacy category object'
             using errcode = '22023';
     end if;
 
-    select count(*) into v_item_count from pg_catalog.jsonb_each(p_items);
-    if v_item_count not between 1 and 4 then
-        raise exception 'An outfit must contain 1 to 4 slots'
-            using errcode = '22023';
+    if pg_catalog.jsonb_typeof(p_items) = 'array' then
+        if exists (
+            select 1 from pg_catalog.jsonb_array_elements(p_items) as item(value)
+            where pg_catalog.jsonb_typeof(item.value) <> 'string'
+        ) then
+            raise exception 'Each item must be a UUID string' using errcode = '22023';
+        end if;
+        select pg_catalog.array_agg(item.value::uuid) into v_item_ids
+        from pg_catalog.jsonb_array_elements_text(p_items) as item(value);
+    else
+        if exists (
+            select 1 from pg_catalog.jsonb_each(p_items) as item
+            where item.key not in ('top', 'bottom', 'jacket', 'cardigan', 'hat', 'shoes', 'jewelry')
+               or pg_catalog.jsonb_typeof(item.value) <> 'string'
+        ) then
+            raise exception 'Each item must use a valid category and UUID string'
+                using errcode = '22023';
+        end if;
+        select pg_catalog.array_agg(item.value::uuid) into v_item_ids
+        from pg_catalog.jsonb_each_text(p_items) as item;
+        if exists (
+            select 1 from pg_catalog.jsonb_each_text(p_items) as item
+            where not exists (
+                select 1 from public.clothing_items c
+                where c.id = item.value::uuid and c.category = item.key
+                  and c.user_id = v_user_id
+            )
+        ) then
+            raise exception 'Items must belong to you and match their categories'
+                using errcode = '22023';
+        end if;
     end if;
 
-    if exists (
-        select 1 from pg_catalog.jsonb_each(p_items) as item
-        where item.key not in ('top', 'bottom', 'jacket', 'shoes')
-           or pg_catalog.jsonb_typeof(item.value) <> 'string'
-    ) then
-        raise exception 'Each item must use a valid slot and a UUID string value'
-            using errcode = '22023';
+    v_item_count := coalesce(pg_catalog.cardinality(v_item_ids), 0);
+    if v_item_count = 0 then
+        raise exception 'Choose at least one clothing item' using errcode = '22023';
+    end if;
+    if (select count(distinct item.id) from pg_catalog.unnest(v_item_ids) as item(id)) <> v_item_count then
+        raise exception 'Each clothing item may appear only once' using errcode = '22023';
     end if;
 
     insert into public.outfits (user_id, name)
-    values (v_user_id, p_name)
-    returning id into v_outfit_id;
+    values (v_user_id, p_name) returning id into v_outfit_id;
 
-    -- UUID casts reject malformed strings; RLS checks ownership of both sides,
-    -- and the composite FK checks category/slot equality and item existence.
+    -- Derive the category from the owned row instead of trusting the client.
+    -- The FK and RLS still apply, including to concurrent category changes.
     insert into public.outfit_items (outfit_id, clothing_item_id, slot)
-    select v_outfit_id, item.value::uuid, item.key
-    from pg_catalog.jsonb_each_text(p_items) as item;
-
+    select v_outfit_id, c.id, c.category
+    from public.clothing_items c
+    where c.id = any(v_item_ids) and c.user_id = v_user_id;
+    get diagnostics v_link_count = row_count;
+    if v_link_count <> v_item_count then
+        raise exception 'One or more clothing items are missing or do not belong to you'
+            using errcode = '22023';
+    end if;
     return v_outfit_id;
 end;
 $$;
@@ -212,13 +241,14 @@ commit;
 
 -- Smoke-test via two separately signed-in clients (not the SQL Editor's admin
 -- role): each can CRUD only their own rows and clothing/<uid>/... bucket keys.
--- Cross-owner outfit links must fail; wrong-category links and duplicate slots
--- must fail; deleting an outfit/item must cascade its outfit_items links.
--- Changing an item's category must shift its outfit slots; if any destination
--- slot is occupied, the entire category update must fail without partial changes.
--- RPC tests: reject NULL/non-object/empty/>4-slot input, unknown slots, non-string
--- or malformed UUID values, foreign-owned/missing items, and slot mismatches.
--- Failed RPC calls must leave no new outfit or links; valid calls return its UUID.
+-- Cross-owner outfit links, wrong-category links and duplicate item IDs must
+-- fail. Multiple distinct items of the same category must succeed. Deleting an
+-- outfit/item cascades its links. Category edits must update every linked slot,
+-- including when the destination category already has another piece.
+-- RPC tests: arrays and legacy objects both save; reject NULL/scalar/empty
+-- input, invalid legacy categories, non-string/malformed UUIDs, duplicate IDs,
+-- foreign-owned/missing items and legacy category mismatches. Failed calls must
+-- leave no new outfit or links. All seven categories must be accepted.
 -- Reject empty/>100-character names, >50-character colors, and image paths
 -- outside the row owner's UUID folder or with no filename after the prefix.
 -- Anonymous requests must have no access to these rows/files or the RPC.

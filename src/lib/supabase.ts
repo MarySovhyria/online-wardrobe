@@ -18,12 +18,23 @@ export const authCallback = {
 };
 export const supabase =
   url && key && !url.includes("your-project") ? createClient(url, key) : null;
-export const categories = ["top", "bottom", "jacket", "shoes"] as const;
+export const categories = [
+  "top",
+  "bottom",
+  "jacket",
+  "cardigan",
+  "hat",
+  "shoes",
+  "jewelry",
+] as const;
 export type Category = (typeof categories)[number];
 export const labels: Record<Category, string> = {
   top: "Tops",
   bottom: "Bottoms",
-  jacket: "Jackets",
+  jacket: "Outerwear",
+  cardigan: "Cardigans",
+  hat: "Hats",
+  jewelry: "Jewelry",
   shoes: "Shoes",
 };
 export type Clothing = {

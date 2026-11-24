@@ -5,7 +5,11 @@ import type { FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import {
   ArrowRight,
+  Bookmark,
   Check,
+  Download,
+  RotateCcw,
+  RotateCw,
   Grid2X2,
   Layers,
   LogOut,
@@ -26,17 +30,31 @@ import {
   type Outfit,
 } from "@/lib/supabase";
 
+import { OutfitCollage, downloadCollage } from "@/components/outfit-collage";
+import {
+  poseFor,
+  itemPose,
+  hasOuterwear,
+  readLayouts,
+  storeLayout,
+  type Layout,
+  type Pose,
+} from "@/lib/outfit-layout";
+
 import { createCutout } from "@/lib/clothing-cutout";
 
 const piecePrompts: Record<Category, string> = {
   top: "upper",
   bottom: "pants",
   jacket: "upper",
+  cardigan: "upper",
+  hat: "upper",
+  jewelry: "upper",
   shoes: "shoes",
 };
 
-type View = "wardrobe" | "studio" | "add";
-type Selection = Partial<Record<Category, string>>;
+type View = "wardrobe" | "studio" | "saved" | "add";
+type Selection = string[];
 const message = (error: unknown) =>
   error instanceof Error
     ? error.message
@@ -344,8 +362,15 @@ function Wardrobe({ user }: { user: User }) {
   const [sort, setSort] = useState("newest");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Clothing | null>(null);
-  const [selection, setSelection] = useState<Selection>({});
+  const [selection, setSelection] = useState<Selection>([]);
+  const [layout, setLayout] = useState<Layout>({});
+  const [savedLayouts, setSavedLayouts] = useState<Record<string, Layout>>({});
+  const [exporting, setExporting] = useState(false);
+  useEffect(() => {
+    setSavedLayouts(readLayouts(user.id));
+  }, [user.id]);
   const [slot, setSlot] = useState<Category>("top");
+  const [activeId, setActiveId] = useState<string>();
   const [outfitName, setOutfitName] = useState("");
   const [busy, setBusy] = useState(false);
   const [deletion, setDeletion] = useState<{
@@ -383,11 +408,7 @@ function Wardrobe({ user }: { user: User }) {
     setItems(rows);
     setOutfits(looks.data as Outfit[]);
     setSelection((previous) =>
-      Object.fromEntries(
-        Object.entries(previous).filter(([slot, id]) =>
-          rows.some((item) => item.id === id && item.category === slot),
-        ),
-      ),
+      previous.filter((id) => rows.some((item) => item.id === id)),
     );
   }, [user.id]);
   useEffect(() => {
@@ -410,7 +431,8 @@ function Wardrobe({ user }: { user: User }) {
   }
   async function saveOutfit(event: FormEvent) {
     event.preventDefault();
-    if (!Object.values(selection).some(Boolean)) {
+    if (busy) return;
+    if (!selection.length) {
       setError("Choose at least one piece for your outfit.");
       return;
     }
@@ -418,16 +440,38 @@ function Wardrobe({ user }: { user: User }) {
     setError("");
     setNotice("");
     try {
-      const { error } = await supabase!.rpc("save_outfit", {
+      const savedLayout = Object.fromEntries(
+        collageItems.map((item) => [
+          item.id,
+          itemPose(item, collageItems, layout),
+        ]),
+      );
+      const { data: savedId, error } = await supabase!.rpc("save_outfit", {
         p_name: outfitName.trim() || "Untitled outfit",
-        p_items: Object.fromEntries(
-          Object.entries(selection).filter(([, id]) => id),
-        ),
+        p_items: selection,
       });
       if (error) throw error;
       setNotice("Outfit saved. A good look, ready when you are.");
-      setOutfitName("");
-      setSelection({});
+      let remembered = true;
+      try {
+        storeLayout(user.id, savedId, savedLayout);
+        setSavedLayouts((previous) => ({
+          ...previous,
+          [savedId]: savedLayout,
+        }));
+      } catch {
+        remembered = false;
+        setNotice(
+          "Your outfit was saved, but this browser could not remember its layout. Download a PNG to keep your arrangement.",
+        );
+      }
+      if (remembered) {
+        setOutfitName("");
+        setSelection([]);
+        setLayout({});
+        setActiveId(undefined);
+        setView("saved");
+      }
       await reload().catch(() =>
         setError(
           "Your outfit was saved, but the list could not refresh. Reload the page to see it; do not save it again.",
@@ -452,11 +496,7 @@ function Wardrobe({ user }: { user: User }) {
         .eq("id", deletion.id);
       if (result.error) throw result.error;
       if (deletion.type === "item" && item) {
-        setSelection((prev) =>
-          Object.fromEntries(
-            Object.entries(prev).filter(([, id]) => id !== item.id),
-          ),
-        );
+        setSelection((prev) => prev.filter((id) => id !== item.id));
         const removed = await supabase!.storage
           .from("clothing")
           .remove([item.image_path]);
@@ -474,9 +514,60 @@ function Wardrobe({ user }: { user: User }) {
       setBusy(false);
     }
   }
+  const collageItems = items.filter((item) => selection.includes(item.id));
+  const hasJacket = hasOuterwear(collageItems);
+  const activePiece = collageItems.find((item) => item.id === activeId);
+  const activePose = activePiece
+    ? itemPose(activePiece, collageItems, layout)
+    : poseFor(slot, hasJacket);
+  const wrapRotation = (value: number) => ((value + 540) % 360) - 180;
+  function updatePose(id: string, pose: Pose) {
+    const item = collageItems.find((item) => item.id === id);
+    if (!item) return;
+    setLayout((previous) => ({
+      ...previous,
+      [id]: poseFor(item.category, hasJacket, pose),
+    }));
+  }
+  function removePiece(id: string) {
+    setLayout(
+      Object.fromEntries(
+        collageItems
+          .filter((item) => item.id !== id)
+          .map((item) => [item.id, itemPose(item, collageItems, layout)]),
+      ),
+    );
+    setSelection((previous) => previous.filter((selected) => selected !== id));
+    if (activeId === id) setActiveId(undefined);
+  }
+  function togglePiece(item: Clothing) {
+    if (selection.includes(item.id)) {
+      removePiece(item.id);
+      return;
+    }
+    setSelection((previous) =>
+      previous.includes(item.id)
+        ? previous.filter((id) => id !== item.id)
+        : [...previous, item.id],
+    );
+    setActiveId(selection.includes(item.id) ? undefined : item.id);
+  }
+  async function exportOutfit() {
+    if (exporting) return;
+    setExporting(true);
+    setError("");
+    try {
+      await downloadCollage(collageItems, layout, outfitName);
+    } catch (error) {
+      setError(message(error));
+    } finally {
+      setExporting(false);
+    }
+  }
   const nav = [
     { id: "wardrobe" as View, label: "My wardrobe", Icon: Grid2X2 },
     { id: "studio" as View, label: "Outfit studio", Icon: Layers },
+    { id: "saved" as View, label: "Saved outfits", Icon: Bookmark },
     { id: "add" as View, label: "Add clothing", Icon: Plus },
   ];
   const visible = items
@@ -536,16 +627,20 @@ function Wardrobe({ user }: { user: User }) {
                 ? "My wardrobe"
                 : view === "studio"
                   ? "The outfit studio"
-                  : editing
-                    ? "A little refresh"
-                    : "Something to add"}
+                  : view === "saved"
+                    ? "Saved outfits"
+                    : editing
+                      ? "A little refresh"
+                      : "Something to add"}
             </h1>
             <p className="subtitle">
               {view === "wardrobe"
                 ? `${items.length} pieces. Endless possibilities.`
                 : view === "studio"
                   ? "Bring your favorites together. Make it yours."
-                  : "Give a favorite piece its own place."}
+                  : view === "saved"
+                    ? `${outfits.length} looks, ready for another day.`
+                    : "Give a favorite piece its own place."}
             </p>
           </div>
           <div className="header-actions">
@@ -711,62 +806,154 @@ function Wardrobe({ user }: { user: User }) {
               );
             }}
           />
-        ) : (
+        ) : view === "studio" ? (
           <>
             <div className="studio-layout">
               <section>
-                <div className="outfit-board">
-                  {categories.map((category) => {
-                    const item = items.find(
-                      (i) => i.id === selection[category],
-                    );
-                    return (
-                      <div
-                        className={`outfit-slot ${item ? "filled" : ""}`}
-                        key={category}
-                      >
-                        <button
-                          className="slot-choice"
-                          aria-pressed={slot === category}
-                          onClick={() => setSlot(category)}
-                        >
-                          <span className="slot-label">{labels[category]}</span>
-                          {item ? (
-                            <img
-                              className="slot-image"
-                              src={item.url}
-                              alt={item.name}
-                            />
-                          ) : (
-                            <>
-                              <Plus size={26} />
-                              <span>
-                                Choose{" "}
-                                {category === "shoes"
-                                  ? "shoes"
-                                  : `a ${category}`}
-                              </span>
-                            </>
-                          )}
-                        </button>
-                        {item && (
-                          <button
-                            className="slot-remove icon-button"
-                            aria-label={`Remove ${item.name} from outfit`}
-                            onClick={() =>
-                              setSelection((prev) => ({
-                                ...prev,
-                                [category]: undefined,
-                              }))
-                            }
-                          >
-                            <X size={16} />
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
+                <div className="collage-toolbar">
+                  <div>
+                    <span className="eyebrow">THE OUTFIT BOARD</span>
+                    <p>A whole look, on one page.</p>
+                  </div>
+                  <button
+                    className="button secondary"
+                    type="button"
+                    disabled={busy || exporting || !collageItems.length}
+                    onClick={() => setLayout({})}
+                  >
+                    Auto-arrange
+                  </button>
                 </div>
+                <OutfitCollage
+                  items={collageItems}
+                  layout={layout}
+                  active={activeId}
+                  onSelect={setActiveId}
+                  onChange={updatePose}
+                />
+                <p className="subtitle collage-hint">
+                  Drag a piece to move it. Select one to straighten, resize, or
+                  flip it.
+                </p>
+                {!!collageItems.length && (
+                  <div
+                    className="filters selected-pieces"
+                    aria-label="Selected outfit pieces"
+                  >
+                    {collageItems.map((item) => (
+                      <button
+                        type="button"
+                        className={`filter ${activeId === item.id ? "active" : ""}`}
+                        aria-pressed={activeId === item.id}
+                        key={item.id}
+                        onClick={() => setActiveId(item.id)}
+                      >
+                        {item.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {activePiece && (
+                  <div className="collage-adjustments">
+                    <div className="collage-adjustment-heading">
+                      <strong>{activePiece.name}</strong>
+                      <button
+                        type="button"
+                        className="inline-link"
+                        onClick={() => removePiece(activePiece.id)}
+                      >
+                        Remove piece
+                      </button>
+                    </div>
+                    <label className="field">
+                      Straighten <span>{activePose.rotation}°</span>
+                      <input
+                        type="range"
+                        min="-180"
+                        max="180"
+                        step="1"
+                        value={activePose.rotation}
+                        onChange={(e) =>
+                          updatePose(activePiece.id, {
+                            ...activePose,
+                            rotation: Number(e.target.value),
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="field">
+                      Size <span>{Math.round(activePose.scale * 100)}%</span>
+                      <input
+                        type="range"
+                        min="40"
+                        max="160"
+                        step="1"
+                        value={Math.round(activePose.scale * 100)}
+                        onChange={(e) =>
+                          updatePose(activePiece.id, {
+                            ...activePose,
+                            scale: Number(e.target.value) / 100,
+                          })
+                        }
+                      />
+                    </label>
+                    <div className="form-row">
+                      <button
+                        type="button"
+                        className="button secondary"
+                        aria-label="Rotate left 90 degrees"
+                        onClick={() =>
+                          updatePose(activePiece.id, {
+                            ...activePose,
+                            rotation: wrapRotation(activePose.rotation - 90),
+                          })
+                        }
+                      >
+                        <RotateCcw size={16} />
+                        90°
+                      </button>
+                      <button
+                        type="button"
+                        className="button secondary"
+                        aria-label="Rotate right 90 degrees"
+                        onClick={() =>
+                          updatePose(activePiece.id, {
+                            ...activePose,
+                            rotation: wrapRotation(activePose.rotation + 90),
+                          })
+                        }
+                      >
+                        <RotateCw size={16} />
+                        90°
+                      </button>
+                      <button
+                        type="button"
+                        className="button secondary"
+                        aria-pressed={activePose.flip}
+                        onClick={() =>
+                          updatePose(activePiece.id, {
+                            ...activePose,
+                            flip: !activePose.flip,
+                          })
+                        }
+                      >
+                        Flip
+                      </button>
+                      <button
+                        type="button"
+                        className="button secondary"
+                        onClick={() =>
+                          updatePose(
+                            activePiece.id,
+                            itemPose(activePiece, collageItems, {}),
+                          )
+                        }
+                      >
+                        Reset piece
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <form className="form-stack" onSubmit={saveOutfit}>
                   <label className="field">
                     Give this look a name
@@ -780,7 +967,7 @@ function Wardrobe({ user }: { user: User }) {
                   <div className="form-row">
                     <button
                       className="button primary"
-                      disabled={busy || !Object.values(selection).some(Boolean)}
+                      disabled={busy || !selection.length}
                     >
                       {busy ? "Saving…" : "Save outfit"}
                       <Check size={18} />
@@ -789,18 +976,37 @@ function Wardrobe({ user }: { user: User }) {
                       type="button"
                       className="button secondary"
                       onClick={() => {
-                        setSelection({});
+                        setSelection([]);
+                        setLayout({});
                         setOutfitName("");
                       }}
                     >
                       Start fresh
                     </button>
+                    <button
+                      type="button"
+                      className="button secondary"
+                      disabled={exporting || !collageItems.length}
+                      onClick={exportOutfit}
+                    >
+                      <Download size={18} />
+                      {exporting ? "Creating image…" : "Download PNG"}
+                    </button>
                   </div>
+                  <p className="subtitle">
+                    Outfit pieces sync to your account. Layout adjustments stay
+                    in this browser; download the image to keep or share the
+                    finished look.
+                  </p>
                 </form>
               </section>
               <section className="studio-panel">
                 <span className="eyebrow">THE FINISHING TOUCHES</span>
                 <h2>Pick your {labels[slot].toLowerCase()}</h2>
+                <p className="subtitle" role="status">
+                  {selection.length} pieces selected. Choose as many as you
+                  like.
+                </p>
                 <div className="filters">
                   {categories.map((category) => (
                     <button
@@ -818,15 +1024,19 @@ function Wardrobe({ user }: { user: User }) {
                     .filter((i) => i.category === slot)
                     .map((item) => (
                       <button
-                        className={`picker-item ${selection[slot] === item.id ? "selected" : ""}`}
+                        className={`picker-item ${selection.includes(item.id) ? "selected" : ""}`}
                         key={item.id}
-                        aria-pressed={selection[slot] === item.id}
-                        onClick={() =>
-                          setSelection((prev) => ({ ...prev, [slot]: item.id }))
-                        }
+                        aria-pressed={selection.includes(item.id)}
+                        aria-label={item.name}
+                        onClick={() => togglePiece(item)}
                       >
                         <img src={item.url} alt={item.name} loading="lazy" />
-                        <span>{item.name}</span>
+                        <span>
+                          {item.name}
+                          {selection.includes(item.id) && (
+                            <Check size={14} aria-label="Selected" />
+                          )}
+                        </span>
                       </button>
                     ))}
                 </div>
@@ -843,84 +1053,80 @@ function Wardrobe({ user }: { user: User }) {
                 )}
               </section>
             </div>
-            <section className="saved-section">
-              <span className="eyebrow">READY FOR ANOTHER DAY</span>
-              <h2>
-                Saved outfits <span className="pill">{outfits.length}</span>
-              </h2>
-              {!outfits.length ? (
+          </>
+        ) : null}
+        {!loading && view === "saved" && (
+          <section className="saved-section">
+            <span className="eyebrow">READY FOR ANOTHER DAY</span>
+            <h2>
+              Saved outfits <span className="pill">{outfits.length}</span>
+            </h2>
+            {!outfits.length ? (
+              <div className="empty-state">
+                <h3>No saved outfits yet</h3>
                 <p className="subtitle">
                   Your favorite combinations will live here.
                 </p>
-              ) : (
-                <div className="saved-grid">
-                  {outfits.map((outfit) => (
-                    <article className="saved-card" key={outfit.id}>
-                      <button
-                        className="saved-preview"
-                        aria-label={`Open ${outfit.name}`}
-                        onClick={() => {
-                          setSelection(
-                            Object.fromEntries(
-                              outfit.outfit_items.map((i) => [
-                                i.slot,
-                                i.clothing_item_id,
-                              ]),
-                            ),
-                          );
-                          setOutfitName(`${outfit.name} — copy`.slice(0, 100));
-                          window.scrollTo({ top: 0, behavior: "smooth" });
-                        }}
-                      >
-                        {categories.map((category) => {
-                          const link = outfit.outfit_items.find(
-                            (i) => i.slot === category,
-                          );
-                          const item = items.find(
-                            (i) => i.id === link?.clothing_item_id,
-                          );
-                          return (
-                            <div key={category}>
-                              {item ? (
-                                <img
-                                  src={item.url}
-                                  alt={item.name}
-                                  loading="lazy"
-                                />
-                              ) : (
-                                <span>{labels[category]}</span>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </button>
-                      <div className="card-body">
-                        <h3 className="saved-name">{outfit.name}</h3>
-                        <div className="card-actions">
-                          <span className="card-meta">
-                            {outfit.outfit_items.length} pieces
-                          </span>
-                          <button
-                            className="icon-button"
-                            aria-label={`Delete outfit ${outfit.name}`}
-                            onClick={() =>
-                              setDeletion({
-                                type: "outfit",
-                                id: outfit.id,
-                                name: outfit.name,
-                              })
-                            }
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
+                <button
+                  className="button primary"
+                  onClick={() => navigate("studio")}
+                >
+                  Create an outfit <ArrowRight size={18} />
+                </button>
+              </div>
+            ) : (
+              <div className="saved-grid">
+                {outfits.map((outfit) => (
+                  <article className="saved-card" key={outfit.id}>
+                    <button
+                      className="saved-collage"
+                      aria-label={`Open ${outfit.name}`}
+                      onClick={() => {
+                        setSelection(
+                          outfit.outfit_items.map((i) => i.clothing_item_id),
+                        );
+                        setLayout(savedLayouts[outfit.id] || {});
+                        setActiveId(undefined);
+                        setView("studio");
+                        setOutfitName(`${outfit.name} — copy`.slice(0, 100));
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
+                    >
+                      <OutfitCollage
+                        items={items.filter((item) =>
+                          outfit.outfit_items.some(
+                            (link) => link.clothing_item_id === item.id,
+                          ),
+                        )}
+                        layout={savedLayouts[outfit.id] || {}}
+                      />
+                    </button>
+                    <div className="card-body">
+                      <h3 className="saved-name">{outfit.name}</h3>
+                      <div className="card-actions">
+                        <span className="card-meta">
+                          {outfit.outfit_items.length} pieces
+                        </span>
+                        <button
+                          className="icon-button"
+                          aria-label={`Delete outfit ${outfit.name}`}
+                          onClick={() =>
+                            setDeletion({
+                              type: "outfit",
+                              id: outfit.id,
+                              name: outfit.name,
+                            })
+                          }
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </section>
-          </>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
         )}
       </main>
       <nav className="mobile-nav" aria-label="Mobile navigation">
@@ -965,38 +1171,89 @@ function Editor({
   const [color, setColor] = useState(item?.color || "");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState(item?.url || "");
-  const [photoType, setPhotoType] = useState("worn");
+  const accessory = category === "hat" || category === "jewelry";
+  const [photoType, setPhotoType] = useState(
+    item?.category === "hat" || item?.category === "jewelry"
+      ? "standalone"
+      : "worn",
+  );
   const [piece, setPiece] = useState(piecePrompts[item?.category || "top"]);
   const [cutout, setCutout] = useState<Blob | null>(null);
+  const [flatlay, setFlatlay] = useState<File | null>(null);
   const [showOriginal, setShowOriginal] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [phase, setPhase] = useState("");
   useEffect(() => {
-    const source = showOriginal ? file : cutout || file;
+    const source = showOriginal ? file : cutout || flatlay || file;
     if (!source) return;
     const url = URL.createObjectURL(source);
     setPreview(url);
     return () => URL.revokeObjectURL(url);
-  }, [file, cutout, showOriginal]);
-  function resetCutouts() {
+  }, [file, cutout, flatlay, showOriginal]);
+  function resetCutouts(clearFlatlay = true) {
     setCutout(null);
+    if (clearFlatlay) setFlatlay(null);
     setShowOriginal(false);
+  }
+  async function createFlatlay() {
+    if (!file || busy) return;
+    setBusy(true);
+    setError("");
+    setPhase("Creating flat-lay…");
+    try {
+      const photo = await preparePhoto(file);
+      const { data, error } = await supabase!.auth.getSession();
+      if (error || !data.session)
+        throw new Error("Please sign in again before creating a flat-lay.");
+      const garment = category === "jacket" ? "jacket" : piece;
+      const response = await fetch(`/api/create-flatlay?piece=${garment}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${data.session.access_token}`,
+          "Content-Type": "image/webp",
+        },
+        body: photo,
+        signal: AbortSignal.timeout(930_000),
+      });
+      const result = await response
+        .json()
+        .catch(() => ({ error: "FLUX is unavailable. Please try again." }));
+      if (!response.ok)
+        throw new Error(result.error || "Could not create a flat-lay.");
+      if (
+        typeof result.image !== "string" ||
+        !result.image.startsWith("data:image/png;base64,")
+      )
+        throw new Error("FLUX returned an unreadable image. Please try again.");
+      const generated = await (await fetch(result.image)).blob();
+      resetCutouts();
+      setFlatlay(new File([generated], "flatlay.png", { type: "image/png" }));
+    } catch (error) {
+      setError(
+        error instanceof Error && error.name === "TimeoutError"
+          ? "FLUX took too long. Try again with other apps closed, or use regular extraction."
+          : message(error),
+      );
+    } finally {
+      setBusy(false);
+      setPhase("");
+    }
   }
   async function extract() {
     if (!file || busy) return;
     setBusy(true);
     setError("");
-    resetCutouts();
+    resetCutouts(false);
     try {
       setPhase("Preparing photo…");
-      const photo = await preparePhoto(file);
+      const photo = await preparePhoto(flatlay || file);
       const { data, error } = await supabase!.auth.getSession();
       if (error || !data.session)
         throw new Error("Please sign in again before extracting clothing.");
       setPhase("Finding your clothing…");
       const response = await fetch(
-        `/api/extract-clothing?mode=${photoType}&piece=${piece}`,
+        `/api/extract-clothing?mode=${flatlay ? "standalone" : photoType}&piece=${piece}`,
         {
           method: "POST",
           headers: {
@@ -1076,7 +1333,7 @@ function Editor({
         user_id: user.id,
       };
       // Category changes cascade to saved outfit slots through the database FK.
-      // A conflicting occupied slot is rejected, leaving the original item intact.
+      // Multiple pieces may share the same category in a saved outfit.
       const result = item
         ? await supabase!
             .from("clothing_items")
@@ -1131,7 +1388,9 @@ function Editor({
               alt={
                 cutout && !showOriginal
                   ? "Extracted clothing on a transparent background"
-                  : "Original clothing photo"
+                  : flatlay && !showOriginal
+                    ? "AI-generated flat-lay preview"
+                    : "Original clothing photo"
               }
             />
           ) : (
@@ -1178,7 +1437,9 @@ function Editor({
                   resetCutouts();
                 }}
               >
-                <option value="worn">Someone wearing the clothing</option>
+                <option value="worn" disabled={accessory}>
+                  Someone wearing the clothing
+                </option>
                 <option value="standalone">Clothing on its own</option>
               </select>
             </label>
@@ -1193,7 +1454,9 @@ function Editor({
                     resetCutouts();
                   }}
                 >
-                  {(category === "top" || category === "jacket") && (
+                  {(category === "top" ||
+                    category === "jacket" ||
+                    category === "cardigan") && (
                     <option value="upper">Top / outer layer</option>
                   )}
                   {category === "bottom" && (
@@ -1209,36 +1472,87 @@ function Editor({
               </label>
             )}
             <p className="subtitle">
-              {photoType === "worn"
-                ? "Use a photo of one person. Tops and jackets may be extracted together when layered."
-                : "Use a photo of one clothing item or a pair of shoes, without a person."}{" "}
+              {accessory
+                ? "Use a photo of the item on its own. Worn-photo extraction isn’t supported for this category."
+                : photoType === "worn"
+                  ? "Use a photo of one person. Tops, cardigans and outerwear may be extracted together when layered."
+                  : "Use a photo of one clothing item or a pair of shoes, without a person."}{" "}
               Extraction runs on the computer hosting this app, with no AI
               credits. Only the cutout is saved to your wardrobe.
             </p>
+            {!accessory && (
+              <>
+                <button
+                  type="button"
+                  className="button secondary"
+                  disabled={busy}
+                  onClick={createFlatlay}
+                >
+                  {flatlay
+                    ? "Try another flat-lay"
+                    : "Create flat-lay · FLUX.2 Klein"}
+                </button>
+                <p className="subtitle">
+                  Optional: straighten the garment and recreate hidden fabric
+                  with local AI. Generated details may differ from your
+                  clothing. This can take several minutes. Keep this page open
+                  while it runs.
+                </p>
+              </>
+            )}
+            {flatlay && (
+              <>
+                <p className="subtitle" role="status">
+                  AI-generated preview. Check the color, pattern and shape
+                  against the original, then extract the background before
+                  saving.
+                </p>
+                <button
+                  type="button"
+                  className="button secondary"
+                  disabled={busy}
+                  onClick={() => resetCutouts()}
+                >
+                  Discard flat-lay · use original
+                </button>
+              </>
+            )}
             <button
               type="button"
               className="button secondary"
               disabled={busy}
               onClick={extract}
             >
-              {busy ? phase : cutout ? "Extract again" : "Extract clothing"}
+              {busy
+                ? "Processing…"
+                : cutout
+                  ? "Extract again"
+                  : flatlay
+                    ? "Use flat-lay · remove background"
+                    : "Extract clothing"}
             </button>
             {cutout && (
               <>
                 <p className="subtitle" role="status">
-                  Check the edges before saving. Parts hidden by arms, hair, or
-                  other clothing cannot be recovered.
+                  {flatlay
+                    ? "Check the edges and generated details before saving. Hidden fabric is an AI estimate."
+                    : "Check the edges before saving. Parts hidden by arms, hair, or other clothing cannot be recovered."}
                 </p>
-
-                <button
-                  type="button"
-                  className="button secondary"
-                  disabled={busy}
-                  onClick={() => setShowOriginal(!showOriginal)}
-                >
-                  {showOriginal ? "Show cutout" : "Compare with original"}
-                </button>
               </>
+            )}
+            {(cutout || flatlay) && (
+              <button
+                type="button"
+                className="button secondary"
+                disabled={busy}
+                onClick={() => setShowOriginal(!showOriginal)}
+              >
+                {showOriginal
+                  ? cutout
+                    ? "Show cutout"
+                    : "Show flat-lay"
+                  : "Compare with original"}
+              </button>
             )}
             {busy && (
               <p className="subtitle" role="status" aria-live="polite">
@@ -1271,6 +1585,8 @@ function Editor({
               const next = e.target.value as Category;
               setCategory(next);
               setPiece(piecePrompts[next]);
+              if (next === "hat" || next === "jewelry")
+                setPhotoType("standalone");
               resetCutouts();
             }}
             disabled={busy}
@@ -1295,7 +1611,7 @@ function Editor({
         {item && (
           <p className="subtitle">
             Replacing the photo updates it in your saved outfits too. A category
-            change may be blocked if it conflicts with a saved outfit.
+            change updates its category in saved outfits too.
           </p>
         )}
         {error && (

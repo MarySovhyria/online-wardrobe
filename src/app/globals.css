@@ -1348,3 +1348,141 @@ img.cutout-preview {
   );
   background-size: 20px 20px;
 }
+
+/* One shared white sheet, with the same geometry used by the PNG exporter. */
+.collage-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.collage-toolbar p {
+  margin: 5px 0 0;
+  font-family: var(--font-serif);
+  font-size: 1.3rem;
+}
+.collage-board {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 5 / 7;
+  overflow: hidden;
+  background: #fff;
+  isolation: isolate;
+}
+.collage-board.editable {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgb(43 48 32 / 5%);
+}
+.collage-piece {
+  position: absolute;
+  display: block;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  transform-origin: center;
+}
+button.collage-piece {
+  cursor: grab;
+  touch-action: none;
+}
+button.collage-piece:active {
+  cursor: grabbing;
+}
+.collage-piece img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+.editable .collage-piece.active {
+  outline: 1px dashed #929e7b;
+  outline-offset: 3px;
+}
+.editable .collage-piece:focus-visible {
+  outline: 2px solid var(--olive);
+}
+.collage-empty {
+  position: absolute;
+  inset: 15%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--muted);
+}
+.collage-empty p {
+  font-family: var(--font-serif);
+  font-size: 2rem;
+  color: var(--ink);
+}
+.collage-empty > span:last-child {
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+.collage-hint {
+  margin: 12px 0 20px;
+}
+.collage-adjustments {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.collage-adjustment-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.collage-adjustments .field {
+  gap: 6px;
+}
+.collage-adjustments input[type="range"] {
+  width: 100%;
+  min-height: 24px;
+  padding: 0;
+  accent-color: var(--olive);
+}
+.collage-adjustments .button {
+  padding: 9px 12px;
+  min-height: 40px;
+}
+.saved-collage {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+@media (max-width: 760px) {
+  .collage-toolbar {
+    flex-wrap: wrap;
+  }
+  .collage-adjustments {
+    padding: 14px;
+  }
+}
+
+.collage-piece {
+  transition: none;
+}
+button.collage-piece:hover:not(:disabled) {
+  background: transparent;
+  border-color: transparent;
+}
+.collage-adjustments .form-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}

@@ -6,32 +6,52 @@ export async function runLocalExtraction(
   mode: string,
   piece: string,
 ): Promise<{ masks?: unknown; error?: string }> {
+  return runLocalWorker(photo, "extract.py", [mode, piece]);
+}
+
+export async function runLocalFlatlay(photo: Buffer, piece: string) {
+  return runLocalWorker(photo, "flatlay.py", [piece], true);
+}
+
+async function runLocalWorker(
+  photo: Buffer,
+  script: string,
+  args: string[],
+  flux = false,
+): Promise<{ masks?: unknown; image?: unknown; error?: string }> {
   const python = resolve(
-    process.platform === "win32"
-      ? ".venv/Scripts/python.exe"
-      : ".venv/bin/python",
+    flux
+      ? ".venv-flux/bin/python"
+      : process.platform === "win32"
+        ? ".venv/Scripts/python.exe"
+        : ".venv/bin/python",
   );
   return new Promise((resolveResult, reject) => {
-    const child = spawn(python, [resolve("local-ai/extract.py"), mode, piece], {
+    const child = spawn(python, [resolve("local-ai", script), ...args], {
       stdio: ["pipe", "pipe", "ignore"],
       env: {
         NODE_ENV: process.env.NODE_ENV,
         PATH: process.env.PATH,
         SYSTEMROOT: process.env.SYSTEMROOT,
         TMPDIR: process.env.TMPDIR,
+        HF_HOME: resolve(".local-ai/huggingface"),
         HF_HUB_OFFLINE: "1",
       },
     });
     let output = "";
-    const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      reject(new Error("timeout"));
-    }, 180_000);
+    let failure = "";
+    const timer = setTimeout(
+      () => {
+        failure = "timeout";
+        child.kill("SIGKILL");
+      },
+      flux ? 900_000 : 180_000,
+    );
     child.stdout.on("data", (chunk: Buffer) => {
       output += chunk.toString();
       if (output.length > 6 * 1024 * 1024) {
+        failure = "invalid_result";
         child.kill("SIGKILL");
-        reject(new Error("invalid_result"));
       }
     });
     child.on("error", () => {
@@ -41,7 +61,7 @@ export async function runLocalExtraction(
     child.on("close", (code) => {
       clearTimeout(timer);
       if (code !== 0) {
-        reject(new Error("processing_failed"));
+        reject(new Error(failure || "processing_failed"));
         return;
       }
       try {

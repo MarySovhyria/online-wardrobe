@@ -79,6 +79,11 @@ export function createExtractionHandler({ verifyUser, extract }: Dependencies) {
           400,
         );
       const result = await extract(photo, mode, piece);
+      if (result.error === "busy")
+        return failure(
+          "Another photo is being processed. Please try again in a moment.",
+          429,
+        );
       if (result.error === "setup_required")
         return failure(
           "Local extraction needs a one-time setup. Run npm run ai:setup in the app folder, then try again.",

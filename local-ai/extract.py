@@ -32,7 +32,13 @@ def main():
 
 if __name__ == '__main__':
     try:
-        main()
+        from worker_lock import model_lock
+        from filelock import Timeout
+        try:
+            with model_lock():
+                main()
+        except Timeout:
+            print(json.dumps({'error': 'busy'}))
     except (ImportError, FileNotFoundError):
         print(json.dumps({'error': 'setup_required'}))
     except Exception:
